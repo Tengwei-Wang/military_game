@@ -1,0 +1,1151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>军事战略游戏</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        redCamp: '#dc2626',
+                        redCampLight: '#fef2f2',
+                        blueCamp: '#2563eb',
+                        blueCampLight: '#eff6ff',
+                        city: '#f59e0b',
+                        hill: '#6b7280',
+                        swamp: '#166534',
+                        plain: '#ffffff',
+                        selectedRed: '#fde68a',
+                        selectedBlue: '#bfdbfe',
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .grid-cell {
+                width: 30px;
+                height: 30px;
+                transition: all 0.05s ease;
+                border: 1px solid #e5e7eb;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                position: relative;
+                font-size: 10px;
+                font-weight: bold;
+            }
+            .grid-cell:hover {
+                transform: scale(1.1);
+                z-index: 10;
+            }
+            .troop-move {
+                animation: move 0.15s ease-out forwards;
+            }
+            @keyframes move {
+                0% { transform: scale(1); opacity: 1; }
+                50% { transform: scale(1.1); opacity: 0.8; }
+                100% { transform: scale(1); opacity: 1; }
+            }
+            .victory-animation {
+                animation: victory 2s infinite;
+            }
+            @keyframes victory {
+                0% { transform: scale(1); }
+                50% { transform: scale(1.1); }
+                100% { transform: scale(1); }
+            }
+            .map-container {
+                overflow-x: auto;
+                max-width: 100%;
+                padding-bottom: 1rem;
+            }
+            .tooltip {
+                position: absolute;
+                background-color: rgba(0, 0, 0, 0.8);
+                color: white;
+                padding: 4px 8px;
+                border-radius: 4px;
+                font-size: 12px;
+                z-index: 100;
+                pointer-events: none;
+                opacity: 0;
+                transition: opacity 0.2s;
+            }
+            .control-hint {
+                background-color: rgba(0, 0, 0, 0.7);
+                color: white;
+                padding: 0.5rem;
+                border-radius: 4px;
+                font-size: 0.85rem;
+                margin-top: 1rem;
+            }
+            .mode-indicator {
+                display: inline-block;
+                width: 10px;
+                height: 10px;
+                border-radius: 50%;
+                margin-right: 5px;
+            }
+            .mode-active {
+                background-color: #10b981;
+            }
+            .mode-inactive {
+                background-color: #ef4444;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-4 md:p-6">
+    <div class="container mx-auto max-w-7xl">
+        <header class="text-center mb-6">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-800 mb-2">军事战略游戏</h1>
+            <p class="text-gray-600">占领对方都城获得胜利！</p>
+        </header>
+
+        <div class="flex flex-col lg:flex-row gap-6">
+            <!-- 游戏信息面板 -->
+            <div class="w-full lg:w-64 bg-white rounded-lg shadow-md p-4 order-2 lg:order-1">
+                <div class="mb-6">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4 border-b border-gray-200 pb-2">游戏状态</h2>
+                    
+                    <div class="mb-4">
+                        <div class="flex items-center mb-2">
+                            <div class="w-4 h-4 bg-redCamp rounded-full mr-2"></div>
+                            <span class="text-gray-700">红方总兵力</span>
+                        </div>
+                        <div class="bg-gray-100 rounded p-2">
+                            <span id="redTotalTroops" class="text-redCamp font-bold">0</span> 人
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <div class="flex items-center mb-2">
+                            <div class="w-4 h-4 bg-blueCamp rounded-full mr-2"></div>
+                            <span class="text-gray-700">蓝方总兵力</span>
+                        </div>
+                        <div class="bg-gray-100 rounded p-2">
+                            <span id="blueTotalTroops" class="text-blueCamp font-bold">0</span> 人
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <h3 class="font-bold text-gray-700 mb-2">游戏时间</h3>
+                        <div class="bg-gray-100 rounded p-2">
+                            <span id="gameTime" class="text-gray-800">00:00</span>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <h3 class="font-bold text-gray-700 mb-2">红方状态</h3>
+                        <div class="bg-gray-100 rounded p-2">
+                            <div><span class="mode-indicator mode-inactive" id="redModeIndicator"></span>
+                                <span id="redModeText">浏览模式</span></div>
+                            <div>选中: <span id="redSelectedPos">无</span></div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-6">
+                        <h3 class="font-bold text-gray-700 mb-2">蓝方状态</h3>
+                        <div class="bg-gray-100 rounded p-2">
+                            <div><span class="mode-indicator mode-inactive" id="blueModeIndicator"></span>
+                                <span id="blueModeText">浏览模式</span></div>
+                            <div>选中: <span id="blueSelectedPos">无</span></div>
+                        </div>
+                    </div>
+                    
+                    <button id="newGameBtn" class="w-full bg-gray-800 hover:bg-gray-700 text-white py-2 px-4 rounded transition">
+                        <i class="fa fa-refresh mr-1"></i> 新游戏
+                    </button>
+                    
+                    <!-- 控制提示 -->
+                    <div class="control-hint">
+                        <h4 class="font-bold mb-2">控制方式：</h4>
+                        <div class="mb-3">
+                            <span class="text-redCamp font-bold">红方</span>：<br>
+                            W(上)、A(左)、S(下)、D(右) - 移动/切换格子<br>
+                            J - 开启/关闭带兵模式
+                        </div>
+                        <div>
+                            <span class="text-blueCamp font-bold">蓝方</span>：<br>
+                            小键盘8(上)、2(下)、4(左)、6(右) - 移动/切换格子<br>
+                            小键盘Enter - 开启/关闭带兵模式
+                        </div>
+                    </div>
+                </div>
+                
+                <div>
+                    <h2 class="text-xl font-bold text-gray-800 mb-4 border-b border-gray-200 pb-2">地形说明</h2>
+                    <div class="space-y-3">
+                        <div class="flex items-center">
+                            <div class="w-6 h-6 bg-redCamp rounded-sm mr-2"></div>
+                            <span class="text-gray-700 text-sm">红方都城</span>
+                        </div>
+                        <div class="flex items-center">
+                            <div class="w-6 h-6 bg-blueCamp rounded-sm mr-2"></div>
+                            <span class="text-gray-700 text-sm">蓝方都城</span>
+                        </div>
+                        <div class="flex items-center">
+                            <div class="w-6 h-6 bg-city rounded-sm mr-2 flex items-center justify-center">
+                                <i class="fa fa-building-o text-white text-xs"></i>
+                            </div>
+                            <span class="text-gray-700 text-sm">城市 (+1/0.5s)</span>
+                        </div>
+                        <div class="flex items-center">
+                            <div class="w-6 h-6 bg-hill rounded-sm mr-2 flex items-center justify-center">
+                                <i class="fa fa-mountain text-white text-xs"></i>
+                            </div>
+                            <span class="text-gray-700 text-sm">山丘 (不可驻军)</span>
+                        </div>
+                        <div class="flex items-center">
+                            <div class="w-6 h-6 bg-swamp rounded-sm mr-2 flex items-center justify-center">
+                                <i class="fa fa-tint text-white text-xs"></i>
+                            </div>
+                            <span class="text-gray-700 text-sm">沼泽 (-1/0.5s)</span>
+                        </div>
+                        <div class="flex items-center">
+                            <div class="w-6 h-6 bg-plain border border-gray-300 rounded-sm mr-2"></div>
+                            <span class="text-gray-700 text-sm">平原 (+1/10s)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 游戏主区域 -->
+            <div class="flex-1 order-1 lg:order-2">
+                <!-- 游戏消息 -->
+                <div id="gameMessage" class="bg-white rounded-lg shadow-md p-4 mb-4 text-center hidden">
+                    <h2 id="messageText" class="text-xl font-bold text-gray-800"></h2>
+                </div>
+                
+                <!-- 地图容器 -->
+                <div class="map-container bg-white rounded-lg shadow-md p-4">
+                    <!-- 固定的20列网格布局 -->
+                    <div id="gameMap" class="grid grid-cols-[repeat(20,30px)] gap-0 mx-auto">
+                        <!-- 地图将在这里动态生成 -->
+                    </div>
+                </div>
+                
+                <!-- 游戏说明 -->
+                <div class="bg-white rounded-lg shadow-md p-4 mt-4">
+                    <h3 class="font-bold text-gray-800 mb-2">游戏说明</h3>
+                    <ul class="text-gray-700 text-sm space-y-1 list-disc pl-5">
+                        <li>红方使用WASD移动，蓝方使用小键盘8、2、4、6移动</li>
+                        <li>红方按J键切换带兵模式，蓝方按小键盘Enter切换带兵模式</li>
+                        <li>带兵模式：移动时会携带兵力（留1个在原地）</li>
+                        <li>浏览模式：移动仅切换选中格子，不移动兵力</li>
+                        <li>按住方向键可实现连续移动</li>
+                        <li>不同地形有不同的兵力增长/减少效果</li>
+                        <li>率先占领对方都城的一方获胜</li>
+                        <li>山丘无法驻军，必须绕开</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 胜利弹窗 -->
+        <div id="victoryModal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 hidden">
+            <div class="bg-white rounded-lg p-8 max-w-md w-full mx-4 shadow-xl victory-animation">
+                <h2 id="victoryText" class="text-2xl font-bold text-center mb-6"></h2>
+                <div class="flex justify-center">
+                    <button id="restartBtn" class="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-white rounded transition">
+                        再来一局
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 地形类型常量
+        const TERRAIN_TYPES = {
+            PLAIN: 'plain',
+            CITY: 'city',
+            HILL: 'hill',
+            SWAMP: 'swamp',
+            RED_CAPITAL: 'redCapital',
+            BLUE_CAPITAL: 'blueCapital'
+        };
+        
+        // 玩家常量
+        const PLAYERS = {
+            RED: 'red',
+            BLUE: 'blue',
+            NEUTRAL: 'neutral'
+        };
+        
+        // 游戏类
+        class MilitaryGame {
+            constructor() {
+                // 地图尺寸
+                this.size = 20;
+                
+                // 游戏状态
+                this.map = [];
+                this.selectedCells = {
+                    red: null,
+                    blue: null
+                };
+                this.armyMode = {
+                    red: false,
+                    blue: false
+                };
+                // 移动状态锁，防止快速连续移动导致的兵力计算错误
+                this.isMoving = {
+                    red: false,
+                    blue: false
+                };
+                this.gameTime = 0;
+                this.gameInterval = null;
+                this.troopGrowthInterval = null;
+                this.isGameOver = false;
+                
+                // 键盘控制相关 - 为双方使用独立的状态跟踪
+                this.keyStates = {
+                    red: {},  // 红方按键状态
+                    blue: {}  // 蓝方按键状态
+                };
+                // 为双方使用独立的连续移动定时器
+                this.movementIntervals = {
+                    red: null,
+                    blue: null
+                };
+                this.movementDelay = 120; // 连续移动间隔(毫秒)
+                this.lastMoveTimes = {
+                    red: 0,
+                    blue: 0
+                };
+                this.keyPressThreshold = 30; // 按键响应阈值
+                
+                // DOM元素
+                this.mapElement = document.getElementById('gameMap');
+                this.redTotalTroopsElement = document.getElementById('redTotalTroops');
+                this.blueTotalTroopsElement = document.getElementById('blueTotalTroops');
+                this.gameTimeElement = document.getElementById('gameTime');
+                this.redModeIndicator = document.getElementById('redModeIndicator');
+                this.redModeText = document.getElementById('redModeText');
+                this.blueModeIndicator = document.getElementById('blueModeIndicator');
+                this.blueModeText = document.getElementById('blueModeText');
+                this.redSelectedPos = document.getElementById('redSelectedPos');
+                this.blueSelectedPos = document.getElementById('blueSelectedPos');
+                this.gameMessageElement = document.getElementById('gameMessage');
+                this.messageTextElement = document.getElementById('messageText');
+                this.newGameBtn = document.getElementById('newGameBtn');
+                this.restartBtn = document.getElementById('restartBtn');
+                this.victoryModal = document.getElementById('victoryModal');
+                this.victoryText = document.getElementById('victoryText');
+                
+                // 绑定事件
+                this.bindEvents();
+                
+                // 开始新游戏
+                this.startNewGame();
+            }
+            
+            // 绑定事件
+            bindEvents() {
+                this.newGameBtn.addEventListener('click', () => this.startNewGame());
+                this.restartBtn.addEventListener('click', () => {
+                    this.victoryModal.classList.add('hidden');
+                    this.startNewGame();
+                });
+                
+                // 键盘事件监听
+                window.addEventListener('keydown', (e) => this.handleKeyDown(e), true);
+                window.addEventListener('keyup', (e) => this.handleKeyUp(e), true);
+                
+                // 防止按键导致页面滚动
+                window.addEventListener('keydown', (e) => {
+                    // 阻止方向键和小键盘方向键的默认滚动行为
+                    if ([37, 38, 39, 40, 104, 98, 100, 102, 13].includes(e.keyCode)) {
+                        e.preventDefault();
+                    }
+                }, { passive: false });
+            }
+            
+            // 判断按键属于哪个玩家
+            getPlayerForKey(e) {
+                // 红方按键: WASD和J
+                if ([87, 65, 83, 68, 74].includes(e.keyCode)) {
+                    return PLAYERS.RED;
+                }
+                // 蓝方按键: 小键盘8,2,4,6和小键盘Enter
+                else if ([104, 98, 100, 102, 13].includes(e.keyCode) && 
+                         (e.location === KeyboardEvent.DOM_KEY_LOCATION_NUMPAD || 
+                          [104, 98, 100, 102].includes(e.keyCode))) {
+                    return PLAYERS.BLUE;
+                }
+                return null;
+            }
+            
+            // 处理按键按下
+            handleKeyDown(e) {
+                if (this.isGameOver) return;
+                
+                const player = this.getPlayerForKey(e);
+                
+                // 处理模式切换
+                if (e.key === 'j' || e.keyCode === 74) {
+                    this.armyMode.red = !this.armyMode.red;
+                    this.updateModeIndicators();
+                    this.showMessage(`红方${this.armyMode.red ? '开启' : '关闭'}带兵模式`, 'red');
+                    e.preventDefault();
+                    return;
+                } else if (e.key === 'Enter' && e.location === KeyboardEvent.DOM_KEY_LOCATION_NUMPAD) {
+                    this.armyMode.blue = !this.armyMode.blue;
+                    this.updateModeIndicators();
+                    this.showMessage(`蓝方${this.armyMode.blue ? '开启' : '关闭'}带兵模式`, 'blue');
+                    e.preventDefault();
+                    return;
+                }
+                
+                // 如果是玩家的按键，记录状态
+                if (player) {
+                    this.keyStates[player][e.key] = true;
+                    this.keyStates[player][e.keyCode] = true;
+                    
+                    // 为该玩家启动连续移动定时器（如果尚未启动）
+                    if (!this.movementIntervals[player]) {
+                        // 立即处理一次移动
+                        if (player === PLAYERS.RED) {
+                            this.handleRedMovement();
+                        } else {
+                            this.handleBlueMovement();
+                        }
+                        
+                        // 设置定时器处理连续移动
+                        this.movementIntervals[player] = setInterval(
+                            () => player === PLAYERS.RED ? this.handleRedMovement() : this.handleBlueMovement(),
+                            this.movementDelay
+                        );
+                    }
+                }
+            }
+            
+            // 处理按键释放
+            handleKeyUp(e) {
+                const player = this.getPlayerForKey(e);
+                
+                if (player) {
+                    // 清除该玩家的按键状态
+                    this.keyStates[player][e.key] = false;
+                    this.keyStates[player][e.keyCode] = false;
+                    
+                    // 检查该玩家是否还有方向键按下
+                    const isRed = player === PLAYERS.RED;
+                    const keysPressed = Object.keys(this.keyStates[player]).some(key => 
+                        this.keyStates[player][key] && 
+                        (isRed ? 
+                            ['w', 'a', 's', 'd', 87, 65, 83, 68].includes(key) : 
+                            ['8', '2', '4', '6', 104, 98, 100, 102].includes(key))
+                    );
+                    
+                    // 如果没有按键按下，清除该玩家的移动定时器
+                    if (!keysPressed && this.movementIntervals[player]) {
+                        clearInterval(this.movementIntervals[player]);
+                        this.movementIntervals[player] = null;
+                    }
+                }
+            }
+            
+            // 处理红方移动
+            handleRedMovement() {
+                const now = Date.now();
+                if (now - this.lastMoveTimes.red < this.keyPressThreshold) {
+                    return;
+                }
+                this.lastMoveTimes.red = now;
+                
+                let direction = null;
+                
+                // 红方移动 (WASD)
+                if (this.keyStates.red['w'] || this.keyStates.red[87]) direction = {x: 0, y: -1};
+                else if (this.keyStates.red['s'] || this.keyStates.red[83]) direction = {x: 0, y: 1};
+                else if (this.keyStates.red['a'] || this.keyStates.red[65]) direction = {x: -1, y: 0};
+                else if (this.keyStates.red['d'] || this.keyStates.red[68]) direction = {x: 1, y: 0};
+                
+                if (direction) {
+                    this.handlePlayerMovement(PLAYERS.RED, direction);
+                }
+            }
+            
+            // 处理蓝方移动
+            handleBlueMovement() {
+                const now = Date.now();
+                if (now - this.lastMoveTimes.blue < this.keyPressThreshold) {
+                    return;
+                }
+                this.lastMoveTimes.blue = now;
+                
+                let direction = null;
+                
+                // 蓝方移动 (小键盘8,2,4,6)
+                if (this.keyStates.blue['8'] || this.keyStates.blue[104]) direction = {x: 0, y: -1};
+                else if (this.keyStates.blue['2'] || this.keyStates.blue[98]) direction = {x: 0, y: 1};
+                else if (this.keyStates.blue['4'] || this.keyStates.blue[100]) direction = {x: -1, y: 0};
+                else if (this.keyStates.blue['6'] || this.keyStates.blue[102]) direction = {x: 1, y: 0};
+                
+                if (direction) {
+                    this.handlePlayerMovement(PLAYERS.BLUE, direction);
+                }
+            }
+            
+            // 处理玩家移动
+            handlePlayerMovement(player, direction) {
+                // 如果正在移动中，忽略新的移动指令
+                if (this.isMoving[player]) return;
+                
+                // 如果没有选中的格子，尝试选中都城
+                if (!this.selectedCells[player]) {
+                    this.selectInitialCell(player);
+                    return;
+                }
+                
+                const currentCell = this.selectedCells[player];
+                const targetX = currentCell.x + direction.x;
+                const targetY = currentCell.y + direction.y;
+                
+                // 检查目标位置是否在地图范围内
+                if (targetX >= 0 && targetX < this.size && targetY >= 0 && targetY < this.size) {
+                    const targetCell = this.map[targetY][targetX];
+                    
+                    // 不能移动到山丘
+                    if (targetCell.terrain === TERRAIN_TYPES.HILL) {
+                        this.showMessage(`${player === PLAYERS.RED ? '红方' : '蓝方'}不能移动到山丘`, 'orange');
+                        return;
+                    }
+                    
+                    // 检查是否在带兵模式
+                    if (this.armyMode[player]) {
+                        // 带兵模式 - 移动兵力
+                        if (currentCell.troops < 1) {
+                            this.showMessage(`${player === PLAYERS.RED ? '红方' : '蓝方'}需要至少1兵力才能移动`, 'orange');
+                            // 仍然切换选中的格子，只是不移动兵力
+                            this.selectedCells[player] = targetCell;
+                            this.updateSelectedPositions();
+                            this.renderMap();
+                            return;
+                        }
+                        
+                        // 设置移动锁
+                        this.isMoving[player] = true;
+                        // 执行兵力移动
+                        this.moveTroops(currentCell, targetCell, player);
+                    } else {
+                        // 浏览模式 - 仅切换选中的格子
+                        this.selectedCells[player] = targetCell;
+                        this.updateSelectedPositions();
+                        this.renderMap();
+                    }
+                }
+            }
+            
+            // 选择初始格子（都城）
+            selectInitialCell(player) {
+                const capitalType = player === PLAYERS.RED ? TERRAIN_TYPES.RED_CAPITAL : TERRAIN_TYPES.BLUE_CAPITAL;
+                
+                for (let y = 0; y < this.size; y++) {
+                    for (let x = 0; x < this.size; x++) {
+                        if (this.map[y][x].terrain === capitalType) {
+                            this.selectedCells[player] = this.map[y][x];
+                            this.updateSelectedPositions();
+                            this.renderMap();
+                            this.showMessage(`${player === PLAYERS.RED ? '红方' : '蓝方'}选中了初始位置`, 
+                                player === PLAYERS.RED ? 'red' : 'blue');
+                            return;
+                        }
+                    }
+                }
+            }
+            
+            // 开始新游戏
+            startNewGame() {
+                // 重置游戏状态
+                this.isGameOver = false;
+                this.selectedCells = {
+                    red: null,
+                    blue: null
+                };
+                this.armyMode = {
+                    red: false,
+                    blue: false
+                };
+                this.isMoving = {
+                    red: false,
+                    blue: false
+                };
+                this.gameTime = 0;
+                this.keyStates = {
+                    red: {},
+                    blue: {}
+                };
+                this.lastMoveTimes = {
+                    red: 0,
+                    blue: 0
+                };
+                
+                // 清除定时器
+                if (this.gameInterval) clearInterval(this.gameInterval);
+                if (this.troopGrowthInterval) clearInterval(this.troopGrowthInterval);
+                
+                // 清除双方的移动定时器
+                Object.values(this.movementIntervals).forEach(interval => {
+                    if (interval) clearInterval(interval);
+                });
+                this.movementIntervals = {
+                    red: null,
+                    blue: null
+                };
+                
+                // 初始化地图
+                this.initializeMap();
+                
+                // 渲染地图
+                this.renderMap();
+                
+                // 更新信息面板
+                this.updateInfoPanel();
+                this.updateModeIndicators();
+                this.updateSelectedPositions();
+                
+                // 隐藏消息和弹窗
+                this.gameMessageElement.classList.add('hidden');
+                this.victoryModal.classList.add('hidden');
+                
+                // 启动定时器
+                this.startTimers();
+            }
+            
+            // 初始化地图
+            initializeMap() {
+                // 创建空地图
+                this.map = new Array(this.size);
+                for (let y = 0; y < this.size; y++) {
+                    this.map[y] = new Array(this.size);
+                    for (let x = 0; x < this.size; x++) {
+                        this.map[y][x] = {
+                            terrain: TERRAIN_TYPES.PLAIN,
+                            owner: PLAYERS.NEUTRAL,
+                            troops: 0,
+                            x: x,
+                            y: y
+                        };
+                    }
+                }
+                
+                // 随机放置红方都城（左侧）
+                const redCapitalX = Math.floor(Math.random() * 3) + 1;
+                const redCapitalY = Math.floor(Math.random() * this.size);
+                this.map[redCapitalY][redCapitalX] = {
+                    terrain: TERRAIN_TYPES.RED_CAPITAL,
+                    owner: PLAYERS.RED,
+                    troops: 10,
+                    x: redCapitalX,
+                    y: redCapitalY
+                };
+                
+                // 随机放置蓝方都城（右侧）
+                let blueCapitalX = this.size - Math.floor(Math.random() * 3) - 2;
+                let blueCapitalY = Math.floor(Math.random() * this.size);
+                
+                // 确保红蓝都城不相邻
+                while (this.isAdjacent(
+                    {x: redCapitalX, y: redCapitalY},
+                    {x: blueCapitalX, y: blueCapitalY}
+                )) {
+                    blueCapitalX = this.size - Math.floor(Math.random() * 3) - 2;
+                    blueCapitalY = Math.floor(Math.random() * this.size);
+                }
+                this.map[blueCapitalY][blueCapitalX] = {
+                    terrain: TERRAIN_TYPES.BLUE_CAPITAL,
+                    owner: PLAYERS.BLUE,
+                    troops: 10,
+                    x: blueCapitalX,
+                    y: blueCapitalY
+                };
+                
+                // 随机放置其他地形
+                const totalCells = this.size * this.size;
+                const cityCount = Math.floor(totalCells * 0.05);
+                const hillCount = Math.floor(totalCells * 0.15);
+                const swampCount = Math.floor(totalCells * 0.1);
+                
+                // 放置城市
+                this.placeTerrain(TERRAIN_TYPES.CITY, cityCount, [
+                    TERRAIN_TYPES.RED_CAPITAL, 
+                    TERRAIN_TYPES.BLUE_CAPITAL
+                ]);
+                
+                // 放置山丘
+                this.placeTerrain(TERRAIN_TYPES.HILL, hillCount, [
+                    TERRAIN_TYPES.RED_CAPITAL, 
+                    TERRAIN_TYPES.BLUE_CAPITAL,
+                    TERRAIN_TYPES.CITY
+                ]);
+                
+                // 放置沼泽
+                this.placeTerrain(TERRAIN_TYPES.SWAMP, swampCount, [
+                    TERRAIN_TYPES.RED_CAPITAL, 
+                    TERRAIN_TYPES.BLUE_CAPITAL,
+                    TERRAIN_TYPES.HILL
+                ]);
+            }
+            
+            // 在地图上放置指定类型的地形
+            placeTerrain(terrainType, count, excludeTerrain) {
+                let placed = 0;
+                const maxAttempts = count * 5;
+                let attempts = 0;
+                
+                while (placed < count && attempts < maxAttempts) {
+                    attempts++;
+                    const x = Math.floor(Math.random() * this.size);
+                    const y = Math.floor(Math.random() * this.size);
+                    
+                    if (!excludeTerrain.includes(this.map[y][x].terrain)) {
+                        this.map[y][x].terrain = terrainType;
+                        placed++;
+                    }
+                }
+            }
+            
+            // 检查两个格子是否相邻
+            isAdjacent(cell1, cell2) {
+                const dx = Math.abs(cell1.x - cell2.x);
+                const dy = Math.abs(cell1.y - cell2.y);
+                return (dx === 1 && dy === 0) || (dx === 0 && dy === 1);
+            }
+            
+            // 渲染地图
+            renderMap() {
+                const fragment = document.createDocumentFragment();
+                
+                for (let y = 0; y < this.size; y++) {
+                    for (let x = 0; x < this.size; x++) {
+                        const cell = this.map[y][x];
+                        let cellElement = this.mapElement.children[y * this.size + x];
+                        
+                        if (cellElement) {
+                            this.updateCellElement(cellElement, cell);
+                        } else {
+                            cellElement = this.createCellElement(cell);
+                        }
+                        
+                        fragment.appendChild(cellElement);
+                    }
+                }
+                
+                this.mapElement.innerHTML = '';
+                this.mapElement.appendChild(fragment);
+            }
+            
+            // 创建格子元素
+            createCellElement(cell) {
+                const cellElement = document.createElement('div');
+                cellElement.className = 'grid-cell relative';
+                cellElement.dataset.x = cell.x;
+                cellElement.dataset.y = cell.y;
+                
+                // 添加鼠标悬停提示
+                cellElement.addEventListener('mouseenter', (e) => {
+                    this.showTooltip(e, cell);
+                });
+                
+                cellElement.addEventListener('mouseleave', () => {
+                    this.hideTooltip();
+                });
+                
+                this.updateCellElement(cellElement, cell);
+                
+                return cellElement;
+            }
+            
+            // 更新格子元素
+            updateCellElement(cellElement, cell) {
+                // 设置背景颜色
+                let bgColor = 'bg-plain';
+                let icon = '';
+                
+                switch (cell.terrain) {
+                    case TERRAIN_TYPES.RED_CAPITAL:
+                        bgColor = 'bg-redCamp';
+                        icon = '<i class="fa fa-fort-awesome text-white"></i>';
+                        break;
+                    case TERRAIN_TYPES.BLUE_CAPITAL:
+                        bgColor = 'bg-blueCamp';
+                        icon = '<i class="fa fa-fort-awesome text-white"></i>';
+                        break;
+                    case TERRAIN_TYPES.CITY:
+                        bgColor = 'bg-city';
+                        icon = '<i class="fa fa-building-o text-white text-xs"></i>';
+                        break;
+                    case TERRAIN_TYPES.HILL:
+                        bgColor = 'bg-hill';
+                        icon = '<i class="fa fa-mountain text-white text-xs"></i>';
+                        break;
+                    case TERRAIN_TYPES.SWAMP:
+                        bgColor = 'bg-swamp';
+                        icon = '<i class="fa fa-tint text-white text-xs"></i>';
+                        break;
+                    default:
+                        bgColor = 'bg-plain';
+                }
+                
+                // 如果有所有者且不是都城，使用阵营颜色
+                if (cell.owner !== PLAYERS.NEUTRAL && 
+                    cell.terrain !== TERRAIN_TYPES.RED_CAPITAL && 
+                    cell.terrain !== TERRAIN_TYPES.BLUE_CAPITAL) {
+                    bgColor = cell.owner === PLAYERS.RED ? 'bg-redCampLight' : 'bg-blueCampLight';
+                }
+                
+                // 移除所有背景色类
+                cellElement.classList.remove(
+                    'bg-plain', 'bg-redCamp', 'bg-blueCamp', 'bg-city', 
+                    'bg-hill', 'bg-swamp', 'bg-redCampLight', 'bg-blueCampLight'
+                );
+                
+                cellElement.classList.add(bgColor);
+                
+                // 移除所有选中状态类
+                cellElement.classList.remove(
+                    'ring-2', 'ring-selectedRed', 'ring-selectedBlue', 'ring-offset-1'
+                );
+                
+                // 添加选中状态 - 红方蓝方用不同颜色的框
+                if (this.selectedCells.red && this.selectedCells.red.x === cell.x && this.selectedCells.red.y === cell.y) {
+                    cellElement.classList.add('ring-2', 'ring-selectedRed', 'ring-offset-1');
+                } else if (this.selectedCells.blue && this.selectedCells.blue.x === cell.x && this.selectedCells.blue.y === cell.y) {
+                    cellElement.classList.add('ring-2', 'ring-selectedBlue', 'ring-offset-1');
+                }
+                
+                // 更新内容（兵力和图标）
+                let content = '';
+                if (cell.troops > 0 && cell.terrain !== TERRAIN_TYPES.HILL) {
+                    content = `<div class="absolute bottom-0 right-0 text-xs font-bold ${
+                        cell.owner === PLAYERS.RED ? 'text-redCamp' : 'text-blueCamp'
+                    }">${cell.troops}</div>`;
+                }
+                
+                cellElement.innerHTML = icon + content;
+            }
+            
+            // 显示格子提示信息
+            showTooltip(event, cell) {
+                this.hideTooltip();
+                
+                const tooltip = document.createElement('div');
+                tooltip.className = 'tooltip';
+                tooltip.id = 'cellTooltip';
+                
+                let terrainName = '';
+                switch (cell.terrain) {
+                    case TERRAIN_TYPES.RED_CAPITAL: terrainName = '红方都城'; break;
+                    case TERRAIN_TYPES.BLUE_CAPITAL: terrainName = '蓝方都城'; break;
+                    case TERRAIN_TYPES.CITY: terrainName = '城市'; break;
+                    case TERRAIN_TYPES.HILL: terrainName = '山丘'; break;
+                    case TERRAIN_TYPES.SWAMP: terrainName = '沼泽'; break;
+                    default: terrainName = '平原';
+                }
+                
+                let ownerText = '';
+                if (cell.owner === PLAYERS.RED) ownerText = '红方控制';
+                else if (cell.owner === PLAYERS.BLUE) ownerText = '蓝方控制';
+                else ownerText = '未占领';
+                
+                tooltip.innerHTML = `
+                    <div>位置: (${cell.x}, ${cell.y})</div>
+                    <div>地形: ${terrainName}</div>
+                    <div>状态: ${ownerText}</div>
+                    ${cell.troops > 0 ? `<div>兵力: ${cell.troops}</div>` : ''}
+                `;
+                
+                document.body.appendChild(tooltip);
+                
+                const rect = event.target.getBoundingClientRect();
+                tooltip.style.left = `${rect.right + 10}px`;
+                tooltip.style.top = `${rect.top}px`;
+                
+                setTimeout(() => {
+                    tooltip.style.opacity = '1';
+                }, 50);
+            }
+            
+            // 隐藏提示
+            hideTooltip() {
+                const tooltip = document.getElementById('cellTooltip');
+                if (tooltip) {
+                    tooltip.remove();
+                }
+            }
+            
+            // 移动兵力
+            moveTroops(fromCell, toCell, player) {
+                // 移动逻辑：留1个在原地，其余全部移动
+                const remainingTroops = 1;
+                const movingTroops = fromCell.troops - remainingTroops;
+                
+                // 应用移动动画
+                const fromElement = this.getCellElement(fromCell.x, fromCell.y);
+                if (fromElement) {
+                    fromElement.classList.add('troop-move');
+                    setTimeout(() => fromElement.classList.remove('troop-move'), 150);
+                }
+                
+                const toElement = this.getCellElement(toCell.x, toCell.y);
+                if (toElement) {
+                    toElement.classList.add('troop-move');
+                    setTimeout(() => toElement.classList.remove('troop-move'), 150);
+                }
+                
+                // 延迟更新，等待动画完成
+                setTimeout(() => {
+                    // 更新出发地兵力
+                    fromCell.troops = remainingTroops;
+                    
+                    // 处理目的地
+                    if (toCell.owner === fromCell.owner || toCell.owner === PLAYERS.NEUTRAL) {
+                        // 同一阵营或中立地区，直接增加兵力
+                        toCell.troops += movingTroops;
+                        toCell.owner = fromCell.owner;
+                    } else {
+                        // 敌方地区，进行战斗
+                        if (movingTroops > toCell.troops) {
+                            // 胜利，占领该地区
+                            toCell.troops = movingTroops - toCell.troops;
+                            toCell.owner = fromCell.owner;
+                            
+                            // 检查是否占领了对方都城
+                            if ((toCell.terrain === TERRAIN_TYPES.RED_CAPITAL && toCell.owner === PLAYERS.BLUE) ||
+                                (toCell.terrain === TERRAIN_TYPES.BLUE_CAPITAL && toCell.owner === PLAYERS.RED)) {
+                                this.endGame(toCell.owner);
+                                // 释放移动锁
+                                this.isMoving[player] = false;
+                                return;
+                            }
+                            
+                            this.showMessage(`${player === PLAYERS.RED ? '红方' : '蓝方'}占领了该地区！`, 
+                                player === PLAYERS.RED ? 'red' : 'blue');
+                        } else {
+                            // 失败，损失所有进攻兵力
+                            toCell.troops -= movingTroops;
+                            if (toCell.troops < 0) toCell.troops = 0;
+                            this.showMessage(`${player === PLAYERS.RED ? '红方' : '蓝方'}进攻失败！`, 'orange');
+                        }
+                    }
+                    
+                    // 移动后选中目标格子
+                    this.selectedCells[player] = toCell;
+                    this.updateSelectedPositions();
+                    
+                    // 释放移动锁
+                    this.isMoving[player] = false;
+                    
+                    // 更新地图和信息面板
+                    requestAnimationFrame(() => {
+                        this.renderMap();
+                        this.updateInfoPanel();
+                    });
+                }, 100);
+            }
+            
+            // 获取格子元素
+            getCellElement(x, y) {
+                const index = y * this.size + x;
+                return this.mapElement.children[index];
+            }
+            
+            // 启动游戏定时器
+            startTimers() {
+                // 游戏时间定时器（每秒更新）
+                this.gameInterval = setInterval(() => {
+                    this.gameTime++;
+                    this.updateGameTime();
+                }, 1000);
+                
+                // 兵力增长定时器（每0.5秒更新）
+                this.troopGrowthInterval = setInterval(() => {
+                    this.updateTroops();
+                }, 500);
+            }
+            
+            // 更新兵力
+            updateTroops() {
+                for (let y = 0; y < this.size; y++) {
+                    for (let x = 0; x < this.size; x++) {
+                        const cell = this.map[y][x];
+                        
+                        // 山丘不能驻军
+                        if (cell.terrain === TERRAIN_TYPES.HILL) {
+                            cell.troops = 0;
+                            cell.owner = PLAYERS.NEUTRAL;
+                            continue;
+                        }
+                        
+                        // 只有有所有者的格子才会增减兵力
+                        if (cell.owner === PLAYERS.NEUTRAL) continue;
+                        
+                        // 根据地形更新兵力
+                        switch (cell.terrain) {
+                            case TERRAIN_TYPES.RED_CAPITAL:
+                            case TERRAIN_TYPES.BLUE_CAPITAL:
+                            case TERRAIN_TYPES.CITY:
+                                // 都城和城市每0.5秒+1
+                                cell.troops++;
+                                break;
+                            case TERRAIN_TYPES.SWAMP:
+                                // 沼泽每0.5秒-1（但不能少于0）
+                                if (cell.troops > 0) cell.troops--;
+                                break;
+                            case TERRAIN_TYPES.PLAIN:
+                                // 平原每10秒+1（每20个0.5秒周期）
+                                if (this.gameTime % 10 === 0 && this.gameTime > 0) {
+                                    cell.troops++;
+                                }
+                                break;
+                        }
+                    }
+                }
+                
+                // 批量更新显示
+                requestAnimationFrame(() => {
+                    this.renderMap();
+                    this.updateInfoPanel();
+                });
+            }
+            
+            // 更新游戏时间显示
+            updateGameTime() {
+                const minutes = Math.floor(this.gameTime / 60).toString().padStart(2, '0');
+                const seconds = (this.gameTime % 60).toString().padStart(2, '0');
+                this.gameTimeElement.textContent = `${minutes}:${seconds}`;
+            }
+            
+            // 更新模式指示器
+            updateModeIndicators() {
+                // 更新红方模式
+                if (this.armyMode.red) {
+                    this.redModeIndicator.classList.remove('mode-inactive');
+                    this.redModeIndicator.classList.add('mode-active');
+                    this.redModeText.textContent = '带兵模式';
+                } else {
+                    this.redModeIndicator.classList.remove('mode-active');
+                    this.redModeIndicator.classList.add('mode-inactive');
+                    this.redModeText.textContent = '浏览模式';
+                }
+                
+                // 更新蓝方模式
+                if (this.armyMode.blue) {
+                    this.blueModeIndicator.classList.remove('mode-inactive');
+                    this.blueModeIndicator.classList.add('mode-active');
+                    this.blueModeText.textContent = '带兵模式';
+                } else {
+                    this.blueModeIndicator.classList.remove('mode-active');
+                    this.blueModeIndicator.classList.add('mode-inactive');
+                    this.blueModeText.textContent = '浏览模式';
+                }
+            }
+            
+            // 更新选中位置显示
+            updateSelectedPositions() {
+                // 更新红方选中位置
+                if (this.selectedCells.red) {
+                    this.redSelectedPos.textContent = 
+                        `(${this.selectedCells.red.x}, ${this.selectedCells.red.y})`;
+                } else {
+                    this.redSelectedPos.textContent = '无';
+                }
+                
+                // 更新蓝方选中位置
+                if (this.selectedCells.blue) {
+                    this.blueSelectedPos.textContent = 
+                        `(${this.selectedCells.blue.x}, ${this.selectedCells.blue.y})`;
+                } else {
+                    this.blueSelectedPos.textContent = '无';
+                }
+            }
+            
+            // 计算并更新双方总兵力
+            calculateTotalTroops() {
+                let redTotal = 0;
+                let blueTotal = 0;
+                
+                // 遍历所有格子计算总兵力
+                for (let y = 0; y < this.size; y++) {
+                    for (let x = 0; x < this.size; x++) {
+                        const cell = this.map[y][x];
+                        if (cell.owner === PLAYERS.RED) {
+                            redTotal += cell.troops;
+                        } else if (cell.owner === PLAYERS.BLUE) {
+                            blueTotal += cell.troops;
+                        }
+                    }
+                }
+                
+                return { redTotal, blueTotal };
+            }
+            
+            // 更新信息面板
+            updateInfoPanel() {
+                // 计算并更新总兵力
+                const { redTotal, blueTotal } = this.calculateTotalTroops();
+                this.redTotalTroopsElement.textContent = redTotal;
+                this.blueTotalTroopsElement.textContent = blueTotal;
+            }
+            
+            // 显示消息
+            showMessage(text, color = 'black') {
+                this.messageTextElement.textContent = text;
+                
+                // 设置消息颜色
+                this.messageTextElement.className = `text-xl font-bold`;
+                if (color === 'red') this.messageTextElement.classList.add('text-redCamp');
+                else if (color === 'blue') this.messageTextElement.classList.add('text-blueCamp');
+                else if (color === 'orange') this.messageTextElement.classList.add('text-orange-500');
+                else this.messageTextElement.classList.add('text-gray-800');
+                
+                this.gameMessageElement.classList.remove('hidden');
+                
+                setTimeout(() => {
+                    this.gameMessageElement.classList.add('hidden');
+                }, 2000);
+            }
+            
+            // 结束游戏
+            endGame(winner) {
+                this.isGameOver = true;
+                
+                // 清除定时器
+                clearInterval(this.gameInterval);
+                clearInterval(this.troopGrowthInterval);
+                
+                // 清除双方的移动定时器
+                Object.values(this.movementIntervals).forEach(interval => {
+                    if (interval) clearInterval(interval);
+                });
+                this.movementIntervals = {
+                    red: null,
+                    blue: null
+                };
+                
+                // 显示胜利信息
+                this.victoryText.textContent = `${winner === PLAYERS.RED ? '红方' : '蓝方'}获胜！成功占领对方都城！`;
+                this.victoryText.className = `text-2xl font-bold text-center mb-6 ${
+                    winner === PLAYERS.RED ? 'text-redCamp' : 'text-blueCamp'
+                }`;
+                this.victoryModal.classList.remove('hidden');
+            }
+        }
+        
+        // 页面加载完成后初始化游戏
+        window.addEventListener('DOMContentLoaded', () => {
+            const game = new MilitaryGame();
+        });
+    </script>
+</body>
+</html>
+    
