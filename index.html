@@ -98,6 +98,29 @@
             .mode-inactive {
                 background-color: #ef4444;
             }
+            /* 新添加的提示信息样式 */
+            .game-messages-container {
+                position: relative;
+                min-height: 80px; /* 确保有足够空间显示提示 */
+            }
+            .game-message {
+                position: absolute;
+                right: 0;
+                top: 0;
+                padding: 0.5rem 1rem;
+                border-radius: 4px;
+                font-weight: bold;
+                z-index: 50;
+                animation: fadeInOut 3s ease-in-out forwards;
+                max-width: 200px;
+                text-align: right;
+            }
+            @keyframes fadeInOut {
+                0% { opacity: 0; transform: translateX(10px); }
+                10% { opacity: 1; transform: translateX(0); }
+                80% { opacity: 1; transform: translateX(0); }
+                100% { opacity: 0; transform: translateX(10px); }
+            }
         }
     </style>
 </head>
@@ -218,17 +241,17 @@
 
             <!-- 游戏主区域 -->
             <div class="flex-1 order-1 lg:order-2">
-                <!-- 游戏消息 -->
-                <div id="gameMessage" class="bg-white rounded-lg shadow-md p-4 mb-4 text-center hidden">
-                    <h2 id="messageText" class="text-xl font-bold text-gray-800"></h2>
-                </div>
-                
-                <!-- 地图容器 -->
-                <div class="map-container bg-white rounded-lg shadow-md p-4">
-                    <!-- 固定的20列网格布局 -->
-                    <div id="gameMap" class="grid grid-cols-[repeat(20,30px)] gap-0 mx-auto">
-                        <!-- 地图将在这里动态生成 -->
+                <!-- 游戏主区域容器，包含地图和提示信息 -->
+                <div class="game-messages-container">
+                    <!-- 地图容器 -->
+                    <div class="map-container bg-white rounded-lg shadow-md p-4">
+                        <!-- 固定的20列网格布局 -->
+                        <div id="gameMap" class="grid grid-cols-[repeat(20,30px)] gap-0 mx-auto">
+                            <!-- 地图将在这里动态生成 -->
+                        </div>
                     </div>
+                    
+                    <!-- 游戏消息将在这里动态生成 -->
                 </div>
                 
                 <!-- 游戏说明 -->
@@ -333,8 +356,7 @@
                 this.blueModeText = document.getElementById('blueModeText');
                 this.redSelectedPos = document.getElementById('redSelectedPos');
                 this.blueSelectedPos = document.getElementById('blueSelectedPos');
-                this.gameMessageElement = document.getElementById('gameMessage');
-                this.messageTextElement = document.getElementById('messageText');
+                this.messagesContainer = document.querySelector('.game-messages-container');
                 this.newGameBtn = document.getElementById('newGameBtn');
                 this.restartBtn = document.getElementById('restartBtn');
                 this.victoryModal = document.getElementById('victoryModal');
@@ -602,6 +624,9 @@
                     blue: null
                 };
                 
+                // 清除所有提示消息
+                this.clearAllMessages();
+                
                 // 初始化地图
                 this.initializeMap();
                 
@@ -613,8 +638,7 @@
                 this.updateModeIndicators();
                 this.updateSelectedPositions();
                 
-                // 隐藏消息和弹窗
-                this.gameMessageElement.classList.add('hidden');
+                // 隐藏弹窗
                 this.victoryModal.classList.add('hidden');
                 
                 // 启动定时器
@@ -1099,20 +1123,30 @@
             
             // 显示消息
             showMessage(text, color = 'black') {
-                this.messageTextElement.textContent = text;
+                // 创建新的消息元素
+                const messageElement = document.createElement('div');
+                messageElement.className = 'game-message';
+                messageElement.textContent = text;
                 
                 // 设置消息颜色
-                this.messageTextElement.className = `text-xl font-bold`;
-                if (color === 'red') this.messageTextElement.classList.add('text-redCamp');
-                else if (color === 'blue') this.messageTextElement.classList.add('text-blueCamp');
-                else if (color === 'orange') this.messageTextElement.classList.add('text-orange-500');
-                else this.messageTextElement.classList.add('text-gray-800');
+                if (color === 'red') messageElement.classList.add('bg-redCamp', 'text-white');
+                else if (color === 'blue') messageElement.classList.add('bg-blueCamp', 'text-white');
+                else if (color === 'orange') messageElement.classList.add('bg-orange-500', 'text-white');
+                else messageElement.classList.add('bg-gray-800', 'text-white');
                 
-                this.gameMessageElement.classList.remove('hidden');
+                // 添加到容器
+                this.messagesContainer.appendChild(messageElement);
                 
+                // 3秒后自动移除
                 setTimeout(() => {
-                    this.gameMessageElement.classList.add('hidden');
-                }, 2000);
+                    messageElement.remove();
+                }, 3000);
+            }
+            
+            // 清除所有消息
+            clearAllMessages() {
+                const messages = document.querySelectorAll('.game-message');
+                messages.forEach(msg => msg.remove());
             }
             
             // 结束游戏
@@ -1148,4 +1182,3 @@
     </script>
 </body>
 </html>
-    
